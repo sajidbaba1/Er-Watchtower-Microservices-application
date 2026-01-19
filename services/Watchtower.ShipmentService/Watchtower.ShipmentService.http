@@ -1,0 +1,6 @@
+@Watchtower.ShipmentService_HostAddress = http://localhost:5239
+
+GET {{Watchtower.ShipmentService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

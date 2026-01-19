@@ -1,0 +1,138 @@
+services:
+  # --- INFRASTRUCTURE ---
+  postgres:
+    image: postgres:15-alpine
+    container_name: watchtower-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: watchtower_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: watchtower-redis
+    ports:
+      - "6380:6379"
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: watchtower-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: watchtower-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9093:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.1.1.1:9093,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  minio:
+    image: minio/minio
+    container_name: watchtower-minio
+    ports:
+      - "9020:9000"
+      - "9021:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: watchtower-clickhouse
+    ports:
+      - "8124:8123"
+    environment:
+      - CLICKHOUSE_PASSWORD=password
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+
+  # --- MONITORING ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: watchtower-prometheus
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9091:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: watchtower-grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3010:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning
+
+  # --- MICROSERVICES ---
+  auth-service:
+    build: ./services/auth-service
+    container_name: watchtower-auth
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "4004:4004"
+    env_file:
+      - ./services/auth-service/.env
+
+  shipment-service:
+    build: ./services/Watchtower.ShipmentService
+    container_name: watchtower-shipment
+    depends_on:
+      - kafka
+      - minio
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./services/Watchtower.ShipmentService/.env
+
+  inventory-service:
+    build: ./services/inventory-service
+    container_name: watchtower-inventory
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8081"
+    env_file:
+      - ./services/inventory-service/.env
+
+  analytics-service:
+    build: ./services/analytics-service
+    container_name: watchtower-analytics
+    depends_on:
+      - kafka
+      - clickhouse
+    ports:
+      - "4005:4005"
+    env_file:
+      - ./services/analytics-service/.env
+
+volumes:
+  postgres_data:
+  minio_data:
+  clickhouse_data:
