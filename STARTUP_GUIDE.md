@@ -23,7 +23,9 @@ Verified ports:
 - **Kafka**: 9093
 - **MinIO**: 9021 (Console)
 - **ClickHouse**: 8124
+- **Prometheus**: 9091
 - **Grafana**: 3010
+- **Jaeger**: 16687
 
 ---
 
