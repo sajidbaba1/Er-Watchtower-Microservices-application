@@ -1,21 +1,43 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #050b14;
-  --color-foreground: #e2e8f0;
-  --color-primary: #0ea5e9;
-  --color-secondary: #10b981;
-  --color-accent: #6366f1;
-  --color-card: #0c1425;
-  --color-border: rgba(255, 255, 255, 0.08);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-card: var(--card);
+  --color-border: var(--border);
 }
 
 :root {
-  --background: #050b14;
-  --foreground: #e2e8f0;
+  --background: #ffffff;
+  --foreground: #0f172a;
   --primary: #0ea5e9;
   --secondary: #10b981;
   --accent: #6366f1;
+  --card: #f8fafc;
+  --border: rgba(0, 0, 0, 0.08);
+  --glass-bg: rgba(248, 250, 252, 0.8);
+  --sidebar-bg: #f1f5f9;
+}
+
+[data-theme='dark'] {
+  --background: #050b14;
+  --foreground: #e2e8f0;
+  --primary: #38bdf8;
+  --secondary: #34d399;
+  --accent: #818cf8;
+  --card: #0c1425;
+  --border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(12, 20, 37, 0.7);
+  --sidebar-bg: #0c1425;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 * {
@@ -33,19 +55,24 @@ body {
 
 /* Premium Component Classes */
 .glass-panel {
-  background: rgba(12, 20, 37, 0.7);
+  background: var(--glass-bg);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 1rem;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+[data-theme='dark'] .glass-panel {
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
 .watchtower-gradient {
-  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -57,7 +84,7 @@ body {
 
 .interactive-hover:hover {
   transform: translateY(-2px);
-  border-color: rgba(14, 165, 233, 0.4);
+  border-color: var(--primary);
   box-shadow: 0 10px 20px -5px rgba(14, 165, 233, 0.2);
 }
 

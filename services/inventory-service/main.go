@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -13,18 +13,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/segmentio/kafka-go"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
 var (
 	eventsProcessed = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "inventory_rfid_events_total",
-			Help: "Total number of RFID events processed by the worker group",
+			Help: "Total number of RFID events processed",
 		},
 	)
 )
@@ -39,88 +34,61 @@ type RFIDEvent struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-func initTracer() (*sdktrace.TracerProvider, error) {
-	ctx := context.Background()
-	exporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithInsecure(),
-		otlptracegrpc.WithEndpoint("localhost:4319"), // Watchtower Jaeger
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("watchtower-inventory-service"),
-		)),
-	)
-	otel.SetTracerProvider(tp)
-	return tp, nil
-}
-
 func startKafkaWorker(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
+	kafkaHost := os.Getenv("KAFKA_HOST")
+	if kafkaHost == "" {
+		kafkaHost = "kafka:9092"
+	}
 
 	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  []string{"localhost:9093"}, // Watchtower Kafka
+		Brokers:  []string{kafkaHost},
 		Topic:    "rfid-pings",
 		GroupID:  "inventory-workers",
-		MinBytes: 10e3, // 10KB
-		MaxBytes: 10e6, // 10MB
+		MinBytes: 10e3,
+		MaxBytes: 10e6,
 	})
 
-	log.Println("[worker]: Connected to Kafka, waiting for RFID pings...")
+	log.Println("[worker]: Connected to Kafka: ", kafkaHost)
 
 	for {
 		m, err := r.ReadMessage(ctx)
 		if err != nil {
+			log.Println("[worker] Error reading message:", err)
 			break
 		}
 
-		// High-speed processing using a goroutine pool pattern (simplified here)
 		go func(msg kafka.Message) {
 			var event RFIDEvent
 			if err := json.Unmarshal(msg.Value, &event); err != nil {
 				return
 			}
-			
-			// Simulate high-volume processing logic (e.g., updating Redis or ClickHouse)
 			eventsProcessed.Inc()
-			
-			if eventsProcessed != nil { // Fake check to avoid unused
-				// fmt.Printf("Processed tag: %s at %s\n", event.TagID, event.Location)
-			}
 		}(m)
 	}
-
-	if err := r.Close(); err != nil {
-		log.Fatal("failed to close reader:", err)
-	}
+	r.Close()
 }
 
 func main() {
-	tp, err := initTracer()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func() { _ = tp.Shutdown(context.Background()) }()
-
 	r := gin.Default()
 
-	// Monitoring
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
-
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "UP",
-			"service": "Watchtower Inventory",
-			"mode": "High-Throughput (Go Concurrency)",
-		})
+	// Simple CORS Middleware
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
 	})
 
-	// Kafka Worker Execution
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "UP", "service": "Watchtower Inventory"})
+	})
+
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -128,6 +96,10 @@ func main() {
 
 	go startKafkaWorker(ctx, wg)
 
-	log.Println("[inventory-service]: Serving API on http://localhost:8081")
-	r.Run(":8081") // Watchtower Inventory Port
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8081"
+	}
+	log.Println("[inventory] Serving on Port:", port)
+	r.Run(":" + port)
 }

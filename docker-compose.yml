@@ -36,7 +36,7 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.1.1.1:9093,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9093,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -64,6 +64,22 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
 
+  mongodb:
+    image: mongo:latest
+    container_name: watchtower-mongodb
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: watchtower-jaeger
+    ports:
+      - "16686:16686" # Web UI
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+
   # --- MONITORING ---
   prometheus:
     image: prom/prometheus:latest
@@ -90,29 +106,35 @@ services:
 
   # --- MICROSERVICES ---
   auth-service:
-    build: ./services/auth-service
+    build:
+      context: ./services/auth-service
     container_name: watchtower-auth
     depends_on:
       - postgres
       - redis
+      - mongodb
+      - jaeger
     ports:
       - "4004:4004"
     env_file:
       - ./services/auth-service/.env
 
   shipment-service:
-    build: ./services/Watchtower.ShipmentService
+    build:
+      context: ./services/Watchtower.ShipmentService
     container_name: watchtower-shipment
     depends_on:
       - kafka
       - minio
+      - jaeger
     ports:
       - "5001:5001"
     env_file:
       - ./services/Watchtower.ShipmentService/.env
 
   inventory-service:
-    build: ./services/inventory-service
+    build:
+      context: ./services/inventory-service
     container_name: watchtower-inventory
     depends_on:
       - kafka
@@ -122,7 +144,8 @@ services:
       - ./services/inventory-service/.env
 
   analytics-service:
-    build: ./services/analytics-service
+    build:
+      context: ./services/analytics-service
     container_name: watchtower-analytics
     depends_on:
       - kafka
@@ -136,3 +159,4 @@ volumes:
   postgres_data:
   minio_data:
   clickhouse_data:
+  mongodb_data:

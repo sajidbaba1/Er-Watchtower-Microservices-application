@@ -23,23 +23,46 @@ This is a polyglot microservices ecosystem leveraging modern technologies for hi
 - Go 1.21+
 
 ### 1. Infrastructure Setup
-Spin up the core services:
+Spin up the core services (including MongoDB and Jaeger):
 ```bash
 docker-compose up -d
 ```
 
-### 2. Service Endpoints
-- **Auth**: `http://localhost:4004`
-- **Shipment**: `http://localhost:5001`
-- **Inventory**: `http://localhost:8081`
-- **Analytics**: `http://localhost:4005`
-- **Command Center**: `http://localhost:3011`
+---
 
-## 🛠️ Key Features
-1. **Cryptographic Manifests**: Automatically generates and signs shipment PDFs using RSA-256.
-2. **Real-time Tracking**: High-speed Kafka-based event processing for RFID and logistics.
-3. **Data Intelligence**: Advanced transit data aggregation using ClickHouse.
-4. **Full Observability**: Integrated health monitoring and distributed tracing across all services.
+## 🏗️ Technical Architecture & JD Alignment
+
+This project is meticulously architected to meet **Eurusys Enterprise Standards (30-40 LPA Bracket)**:
+
+### **1. Polyglot Microservices (0 → 1 MVP)**
+- **Shipment Service (.NET 8/C#)**: Handles heavy cryptographic binary operations (RSA-256 PDF signing). Uses **Dependency Injection** and clean architecture.
+- **Inventory Service (GoLang)**: Optimized for high-throughput Kafka ingestion using goroutines (Simulating 100k+ RFID pings).
+- **Auth & Analytics (Node.js/TypeScript)**: Leverages Express for I/O-bound REST APIs.
+
+### **2. Multi-Database Strategy**
+- **PostgreSQL**: Transactional integrity for user data.
+- **Redis**: Low-latency caching for session management.
+- **ClickHouse**: Columnar storage for Big Data analytics (Regional transit aggregations).
+- **MongoDB**: Schema-less auditing for security tracking and login history.
+
+### **3. Observability & Security (Mission-Critical)**
+- **OpenTelemetry (OTel)**: Distributed tracing integrated with **Jaeger** for bottleneck identification.
+- **Prometheus & Grafana**: Real-time infrastructure monitoring.
+- **Cryptographic Security**: RSA-256 signatures for shipment manifests, ensuring government-grade data integrity.
+
+### **4. DevOps & QA**
+- **GitHub Actions**: Automated CI/CD pipeline for building and testing all polyglot services.
+- **Environment Validation**: Custom integration test scripts (`/tests/validate_env.sh`) for automated health checks.
+- **Unit Testing**: Included for Go and .NET services to ensure reliability.
+
+## 📡 Service Endpoints
+- **Auth (Node/TS/Mongo)**: `http://localhost:4004`
+- **Shipment (.NET/S3)**: `http://localhost:5001`
+- **Inventory (Go/Kafka)**: `http://localhost:8081`
+- **Analytics (ClickHouse)**: `http://localhost:4005`
+- **Command Center (Next.js)**: `http://localhost:3011`
+- **Tracing (Jaeger)**: `http://localhost:16686`
 
 ## 👥 Authors
-- **Sajid Shaikh** (ss2727303@gmail.com)
+- **Sajid Alimahamad Shaikh** (ss2727303@gmail.com)
+  *B.E. Computer Engineering*

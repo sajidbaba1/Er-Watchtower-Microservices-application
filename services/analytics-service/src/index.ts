@@ -22,7 +22,7 @@ const chClient = createClient({
 // Kafka Setup (Consumer for Delivery Events)
 const kafka = new Kafka({
     clientId: 'analytics-service',
-    brokers: ['localhost:9093']
+    brokers: [process.env.KAFKA_HOST || 'localhost:9093']
 });
 const consumer = kafka.consumer({ groupId: 'analytics-group' });
 
@@ -33,20 +33,29 @@ const transitHistogram = new Histogram({
     labelNames: ['region']
 });
 
-// Initialize ClickHouse Table
-async function initDB() {
-    await chClient.query({
-        query: `
-            CREATE TABLE IF NOT EXISTS shipment_events (
-                shipment_id String,
-                region String,
-                transit_time_seconds Float64,
-                event_time DateTime DEFAULT now()
-            ) ENGINE = MergeTree()
-            ORDER BY event_time
-        `
-    });
-    console.log('[clickhouse]: Schema ready');
+// Initialize ClickHouse Table with retry logic
+async function initDB(retries = 10, delay = 3000): Promise<void> {
+    for (let i = 0; i < retries; i++) {
+        try {
+            await chClient.query({
+                query: `
+                    CREATE TABLE IF NOT EXISTS shipment_events (
+                        shipment_id String,
+                        region String,
+                        transit_time_seconds Float64,
+                        event_time DateTime DEFAULT now()
+                    ) ENGINE = MergeTree()
+                    ORDER BY event_time
+                `
+            });
+            console.log('[clickhouse]: Schema ready');
+            return;
+        } catch (err) {
+            console.log(`[clickhouse]: Connection attempt ${i + 1}/${retries} failed, retrying in ${delay / 1000}s...`);
+            if (i === retries - 1) throw err;
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
 }
 
 // Kafka Consumer Logic

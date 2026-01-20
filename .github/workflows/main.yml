@@ -1,0 +1,49 @@
+name: Watchtower CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+
+    # 1. Test Auth Service (Node.js)
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    - name: Install & Lint Auth Service
+      run: |
+        cd services/auth-service
+        npm install
+        # npm run lint (if configured)
+
+    # 2. Test Shipment Service (.NET 8)
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+    - name: Build Shipment Service
+      run: |
+        cd services/Watchtower.ShipmentService
+        dotnet build
+
+    # 3. Test Inventory Service (Go)
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    - name: Test Inventory Service
+      run: |
+        cd services/inventory-service
+        go test ./...
+
+    # 4. Docker Build Simulation
+    - name: Build Docker Image (Auth)
+      run: docker build -t watchtower-auth ./services/auth-service
